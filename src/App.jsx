@@ -6,6 +6,7 @@ import Login from "./pages/Login"
 
 import Dashboard from "./pages/Dashboard"
 import DriverDashboard from "./pages/DriverDashboard"
+import DriverRegister from "./pages/DriverRegister"
 function App() {
   return (
     <Routes>
@@ -22,12 +23,17 @@ function App() {
         element={<Register />}
       />
       <Route
+    path="/driver-register"
+    element={<DriverRegister />}
+/>
+      <Route
       path="/dashboard" element={<Dashboard />} />
 
      <Route
   path="/driver-dashboard"
   element={<DriverDashboard />}
 /> 
+
      
 
     </Routes>
