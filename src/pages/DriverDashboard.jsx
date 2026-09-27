@@ -23,6 +23,25 @@ function DriverDashboard() {
       console.error("Unable to get current driver:", error)
     }
   }
+  const setDriverOnline = async () => {
+    try {
+      const response = await api.patch(
+        "/api/drivers/status",
+        {
+          status: "online",
+        }
+      )
+      console.log(
+        "Driver is online:",
+        response.data
+      )
+    } catch (error) {
+      console.error(
+        "Unable to set driver online:",
+        error.response?.data || error.message
+      )
+    }
+  }
   const getActiveRide = async () => {
 
     try {
@@ -111,6 +130,7 @@ function DriverDashboard() {
     )
   }
   useEffect(() => {
+    setDriverOnline()
 
     updateDriverLocation()
 
