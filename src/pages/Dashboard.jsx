@@ -1273,7 +1273,7 @@ if (currentStatus === "completed") {
                             }
 
                             rideStatus={
-                                ride?.status
+                                rideStatus || ride?.status
                             }
 
                             driver={driver}

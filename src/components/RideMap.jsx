@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react"
 
 import {
@@ -8,13 +7,13 @@ import {
     Popup,
     Polyline,
     Tooltip,
+    useMap,
 } from "react-leaflet"
 
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 
 
-// Pulsing blue marker for live driver location
 const liveLocationIcon = L.divIcon({
     className: "live-location-marker-container",
     html: `
@@ -28,6 +27,25 @@ const liveLocationIcon = L.divIcon({
 })
 
 
+function FollowDriver({ coordinates }) {
+    const map = useMap()
+
+    useEffect(() => {
+        if (
+            coordinates &&
+            Number.isFinite(coordinates[0]) &&
+            Number.isFinite(coordinates[1])
+        ) {
+            map.setView(coordinates, map.getZoom(), {
+                animate: true,
+            })
+        }
+    }, [coordinates, map])
+
+    return null
+}
+
+
 function RideMap({
     pickupCoordinates,
     destinationCoordinates,
@@ -36,106 +54,61 @@ function RideMap({
     driver,
     passenger,
 }) {
-    const [route, setRoute] = useState([])
-    const [driverRoute, setDriverRoute] = useState([])
-
-    // Test-only driver movement
-const [isSimulating, setIsSimulating] = useState(false)
-const [simulatedIndex, setSimulatedIndex] = useState(0)
-
-const displayedDriverCoordinates =
-    isSimulating && route.length > 0
-        ? route[simulatedIndex % route.length]
-        : driverCoordinates
+    const [activeRoute, setActiveRoute] = useState([])
 
     const isRideCompleted = rideStatus === "completed"
+    const isRideStarted = rideStatus === "started"
 
-    // Passenger route: Pickup → Destination
+    const validCoordinates = (coordinates) =>
+        Array.isArray(coordinates) &&
+        coordinates.length >= 2 &&
+        Number.isFinite(Number(coordinates[0])) &&
+        Number.isFinite(Number(coordinates[1]))
+
+    // Select the current destination for the driver's route.
+    // Before the ride starts: Driver → Pickup.
+    // After the ride starts: Driver → Final destination.
     useEffect(() => {
-        const getRoute = async () => {
+        const controller = new AbortController()
+
+        const getActiveRoute = async () => {
             if (
-                !pickupCoordinates ||
-                !destinationCoordinates ||
-                isRideCompleted
-            ) {
-                setRoute([])
-                return
-            }
-
-            try {
-                const pickupLat = pickupCoordinates[0]
-                const pickupLon = pickupCoordinates[1]
-                const destinationLat = destinationCoordinates[0]
-                const destinationLon = destinationCoordinates[1]
-
-                const response = await fetch(
-                    `https://router.project-osrm.org/route/v1/driving/${pickupLon},${pickupLat};${destinationLon},${destinationLat}?overview=full&geometries=geojson`
-                )
-
-                if (!response.ok) {
-                    throw new Error("Unable to load passenger route")
-                }
-
-                const data = await response.json()
-
-                if (data.routes?.length > 0) {
-                    const routeCoordinates =
-                        data.routes[0].geometry.coordinates.map(
-                            ([longitude, latitude]) => [
-                                latitude,
-                                longitude,
-                            ]
-                        )
-
-                    setRoute(routeCoordinates)
-                } else {
-                    setRoute([])
-                }
-            } catch (error) {
-                console.error(
-                    "Unable to get passenger route:",
-                    error
-                )
-                setRoute([])
-            }
-        }
-
-        getRoute()
-    }, [
-        pickupCoordinates,
-        destinationCoordinates,
-        isRideCompleted,
-    ])
-
-    // Driver route: Current location → Pickup
-    useEffect(() => {
-        const getDriverRoute = async () => {
-            if (
-                rideStatus === "started" ||
                 isRideCompleted ||
-                !driverCoordinates ||
-                !pickupCoordinates
+                !validCoordinates(driverCoordinates)
             ) {
-                setDriverRoute([])
+                setActiveRoute([])
                 return
             }
 
-            try {
-                const [driverLat, driverLon] = driverCoordinates
-                const [pickupLat, pickupLon] = pickupCoordinates
+            const targetCoordinates = isRideStarted
+                ? destinationCoordinates
+                : pickupCoordinates
 
+            if (!validCoordinates(targetCoordinates)) {
+                setActiveRoute([])
+                return
+            }
+
+            const [driverLat, driverLon] =
+                driverCoordinates.map(Number)
+
+            const [targetLat, targetLon] =
+                targetCoordinates.map(Number)
+
+            try {
                 const response = await fetch(
-                    `https://router.project-osrm.org/route/v1/driving/${driverLon},${driverLat};${pickupLon},${pickupLat}?overview=full&geometries=geojson`
+                    `https://router.project-osrm.org/route/v1/driving/${driverLon},${driverLat};${targetLon},${targetLat}?overview=full&geometries=geojson`,
+                    { signal: controller.signal }
                 )
 
                 if (!response.ok) {
-                    throw new Error("Unable to load driver route")
+                    throw new Error("Unable to load the current ride route")
                 }
 
                 const data = await response.json()
 
                 if (data.routes?.length > 0) {
-                    const routeCoordinates =
+                    const coordinates =
                         data.routes[0].geometry.coordinates.map(
                             ([longitude, latitude]) => [
                                 latitude,
@@ -143,57 +116,49 @@ const displayedDriverCoordinates =
                             ]
                         )
 
-                    setDriverRoute(routeCoordinates)
+                    setActiveRoute(coordinates)
                 } else {
-                    setDriverRoute([])
+                    setActiveRoute([])
                 }
             } catch (error) {
-                console.error(
-                    "Unable to get driver route:",
-                    error
-                )
-                setDriverRoute([])
+                if (error.name !== "AbortError") {
+                    console.error(
+                        "Unable to update the driver's route:",
+                        error
+                    )
+                }
             }
         }
 
-        getDriverRoute()
+        getActiveRoute()
+
+        return () => controller.abort()
     }, [
-        driverCoordinates,
-        pickupCoordinates,
-        rideStatus,
+        driverCoordinates?.[0],
+        driverCoordinates?.[1],
+        pickupCoordinates?.[0],
+        pickupCoordinates?.[1],
+        destinationCoordinates?.[0],
+        destinationCoordinates?.[1],
+        isRideStarted,
         isRideCompleted,
     ])
-    // Move the test driver along the route
-useEffect(() => {
-    if (
-        !isSimulating ||
-        route.length < 2 ||
-        isRideCompleted
-    ) {
-        return
-    }
 
-    const interval = setInterval(() => {
-        setSimulatedIndex((previousIndex) =>
-            (previousIndex + 1) % route.length
-        )
-    }, 700)
-
-    return () => clearInterval(interval)
-}, [isSimulating, route.length, isRideCompleted])
-
-// Stop simulation when the ride is completed
-useEffect(() => {
-    if (isRideCompleted) {
-        setIsSimulating(false)
-    }
-}, [isRideCompleted])
+    const hasDriverLocation =
+        !isRideCompleted &&
+        validCoordinates(driverCoordinates)
 
     return (
-        <div className=" relative h-96 w-full overflow-hidden rounded-xl">
+        <div className="relative h-96 w-full overflow-hidden rounded-xl">
             <MapContainer
-                center={[0.5198, 35.2715]}
-                zoom={13}
+                center={
+                    validCoordinates(driverCoordinates)
+                        ? driverCoordinates.map(Number)
+                        : validCoordinates(pickupCoordinates)
+                            ? pickupCoordinates.map(Number)
+                            : [0.5198, 35.2715]
+                }
+                zoom={14}
                 className="h-full w-full"
             >
                 <TileLayer
@@ -201,32 +166,25 @@ useEffect(() => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {/* Driver → Pickup route */}
-                {!isRideCompleted && driverRoute.length > 0 && (
+                {hasDriverLocation && (
+                    <FollowDriver coordinates={driverCoordinates.map(Number)} />
+                )}
+
+                {/* Current driver route: blue before pickup, red after start */}
+                {!isRideCompleted && activeRoute.length > 0 && (
                     <Polyline
-                        positions={driverRoute}
+                        positions={activeRoute}
                         pathOptions={{
-                            color: "blue",
+                            color: isRideStarted ? "red" : "blue",
                             weight: 6,
                         }}
                     />
                 )}
 
-                {/* Pickup → Destination route */}
-                {!isRideCompleted && route.length > 0 && (
-                    <Polyline
-                        positions={route}
-                        pathOptions={{
-                            color: "red",
-                            weight: 5,
-                        }}
-                    />
-                )}
-
-                {/* Live driver location */}
-                {!isRideCompleted && displayedDriverCoordinates&& (
+                {/* Driver marker uses real backend GPS coordinates */}
+                {hasDriverLocation && (
                     <Marker
-                        position={displayedDriverCoordinates}
+                        position={driverCoordinates.map(Number)}
                         icon={liveLocationIcon}
                     >
                         <Tooltip permanent direction="top">
@@ -234,35 +192,34 @@ useEffect(() => {
                         </Tooltip>
 
                         <Popup>
-                            <strong>
-                                {driver?.name || "Driver"}
-                            </strong>
+                            <strong>{driver?.name || "Driver"}</strong>
                             <br />
-                            Live driver location
+                            Latest reported GPS location
                         </Popup>
                     </Marker>
                 )}
 
-                {/* Passenger pickup marker */}
-                {!isRideCompleted && pickupCoordinates && (
-                    <Marker position={pickupCoordinates}>
-                        <Tooltip permanent direction="top">
-                            👤 {passenger?.name || "Passenger"} - Pickup
-                        </Tooltip>
+                {/* Pickup marker remains visible during the active ride */}
+                {!isRideCompleted &&
+                    validCoordinates(pickupCoordinates) && (
+                        <Marker position={pickupCoordinates.map(Number)}>
+                            <Tooltip permanent direction="top">
+                                👤 {passenger?.name || "Passenger"} - Pickup
+                            </Tooltip>
 
-                        <Popup>
-                            <strong>
-                                {passenger?.name || "Passenger"}
-                            </strong>
-                            <br />
-                            Pickup location
-                        </Popup>
-                    </Marker>
-                )}
+                            <Popup>
+                                <strong>
+                                    {passenger?.name || "Passenger"}
+                                </strong>
+                                <br />
+                                Pickup location
+                            </Popup>
+                        </Marker>
+                    )}
 
-                {/* Keep destination visible after completion */}
-                {destinationCoordinates && (
-                    <Marker position={destinationCoordinates}>
+                {/* Keep the destination visible after completion */}
+                {validCoordinates(destinationCoordinates) && (
+                    <Marker position={destinationCoordinates.map(Number)}>
                         <Popup>
                             {isRideCompleted
                                 ? "Ride completed - Destination"
@@ -272,28 +229,6 @@ useEffect(() => {
                 )}
             </MapContainer>
 
-            {/* Driver movement test controls */}
-<div className="absolute left-3 top-3 z-[1000]">
-    <button
-        type="button"
-        disabled={isRideCompleted || route.length < 2}
-        onClick={() => {
-            if (isSimulating) {
-                setIsSimulating(false)
-            } else {
-                setSimulatedIndex(0)
-                setIsSimulating(true)
-            }
-        }}
-        className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-    >
-        {isSimulating
-            ? "Stop test movement"
-            : "Start test movement"}
-    </button>
-</div>
-
-            {/* Pulsing marker animation */}
             <style>
                 {`
                     .live-location-marker-container {
