@@ -12,6 +12,12 @@ function Dashboard() {
 
     const [pickupCoordinates, setPickupCoordinates] = useState(null)
     const [destinationCoordinates, setDestinationCoordinates] = useState(null)
+
+    // Location autocomplete state
+    const [pickupSuggestions, setPickupSuggestions] = useState([])
+    const [destinationSuggestions, setDestinationSuggestions] = useState([])
+    const [searchingPickup, setSearchingPickup] = useState(false)
+    const [searchingDestination, setSearchingDestination] = useState(false)
     const [driverCoordinates, setDriverCoordinates] = useState(null)
 
     const [fare, setFare] = useState(null)
@@ -378,6 +384,102 @@ function Dashboard() {
 
 
     // ==========================================
+    // SEARCH LOCATION SUGGESTIONS
+    // ==========================================
+
+    const searchLocationSuggestions = async (query, setSuggestions, setSearching) => {
+        const trimmedQuery = query.trim()
+
+        if (trimmedQuery.length < 3) {
+            setSuggestions([])
+            setSearching(false)
+            return
+        }
+
+        setSearching(true)
+
+        try {
+            const params = new URLSearchParams({
+                format: "jsonv2",
+                q: trimmedQuery,
+                countrycodes: "ke",
+                limit: "5",
+                addressdetails: "1",
+            })
+
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+                {
+                    headers: {
+                        Accept: "application/json",
+                    },
+                }
+            )
+
+            if (!response.ok) {
+                throw new Error("Location search failed")
+            }
+
+            const results = await response.json()
+
+            setSuggestions(
+                results.map((place) => ({
+                    name: place.display_name,
+                    latitude: Number(place.lat),
+                    longitude: Number(place.lon),
+                }))
+            )
+        } catch (searchError) {
+            console.error("Location suggestions failed:", searchError)
+            setSuggestions([])
+        } finally {
+            setSearching(false)
+        }
+    }
+
+
+    // ==========================================
+    // DEBOUNCED LOCATION AUTOCOMPLETE
+    // ==========================================
+
+    useEffect(() => {
+        if (pickup.trim().length < 3) {
+            setPickupSuggestions([])
+            setSearchingPickup(false)
+            return
+        }
+
+        const timeoutId = setTimeout(() => {
+            searchLocationSuggestions(
+                pickup,
+                setPickupSuggestions,
+                setSearchingPickup
+            )
+        }, 1000)
+
+        return () => clearTimeout(timeoutId)
+    }, [pickup])
+
+    useEffect(() => {
+        if (destination.trim().length < 3) {
+            setDestinationSuggestions([])
+            setSearchingDestination(false)
+            return
+        }
+
+        const timeoutId = setTimeout(() => {
+            searchLocationSuggestions(
+                destination,
+                setDestinationSuggestions,
+                setSearchingDestination
+            )
+        }, 1000)
+
+        return () => clearTimeout(timeoutId)
+    }, [destination])
+
+
+    // ==========================================
     // GEOCODE LOCATION
     // ==========================================
 
@@ -436,15 +538,13 @@ function Dashboard() {
 
 
             const pickupCoords =
-                await geocodeLocation(
-                    pickup
-                )
+                pickupCoordinates ||
+                await geocodeLocation(pickup)
 
 
             const destinationCoords =
-                await geocodeLocation(
-                    destination
-                )
+                destinationCoordinates ||
+                await geocodeLocation(destination)
 
 
             if (
@@ -550,15 +650,13 @@ function Dashboard() {
 
 
             const pickupCoords =
-                await geocodeLocation(
-                    pickup
-                )
+                pickupCoordinates ||
+                await geocodeLocation(pickup)
 
 
             const destinationCoords =
-                await geocodeLocation(
-                    destination
-                )
+                destinationCoordinates ||
+                await geocodeLocation(destination)
 
 
             if (
@@ -1242,9 +1340,7 @@ function Dashboard() {
 
 
                         {/* PICKUP */}
-
-                        <div>
-
+                        <div className="relative">
                             <label className="mb-2 block text-sm font-bold text-gray-700">
                                 Pickup location
                             </label>
@@ -1252,22 +1348,49 @@ function Dashboard() {
                             <input
                                 type="text"
                                 value={pickup}
-                                onChange={(e) =>
-                                    setPickup(
-                                        e.target.value
-                                    )
-                                }
+                                onChange={(e) => {
+                                    setPickup(e.target.value)
+                                    setPickupCoordinates(null)
+                                    setFare(null)
+                                    setPickupSuggestions([])
+                                }}
                                 placeholder="Enter your pickup location"
+                                autoComplete="off"
                                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                             />
 
+                            {(searchingPickup || pickupSuggestions.length > 0) && (
+                                <div className="absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                                    {searchingPickup && (
+                                        <p className="px-4 py-3 text-sm text-gray-500">
+                                            Searching locations...
+                                        </p>
+                                    )}
+
+                                    {pickupSuggestions.map((place, index) => (
+                                        <button
+                                            key={`${place.latitude}-${place.longitude}-${index}`}
+                                            type="button"
+                                            onClick={() => {
+                                                setPickup(place.name)
+                                                setPickupCoordinates([
+                                                    place.latitude,
+                                                    place.longitude,
+                                                ])
+                                                setPickupSuggestions([])
+                                                setFare(null)
+                                            }}
+                                            className="block w-full border-b border-gray-100 px-4 py-3 text-left text-sm text-gray-700 transition last:border-b-0 hover:bg-blue-50"
+                                        >
+                                            {place.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
-
                         {/* DESTINATION */}
-
-                        <div className="mt-5">
-
+                        <div className="relative mt-5">
                             <label className="mb-2 block text-sm font-bold text-gray-700">
                                 Destination
                             </label>
@@ -1275,15 +1398,45 @@ function Dashboard() {
                             <input
                                 type="text"
                                 value={destination}
-                                onChange={(e) =>
-                                    setDestination(
-                                        e.target.value
-                                    )
-                                }
+                                onChange={(e) => {
+                                    setDestination(e.target.value)
+                                    setDestinationCoordinates(null)
+                                    setFare(null)
+                                    setDestinationSuggestions([])
+                                }}
                                 placeholder="Where are you going?"
+                                autoComplete="off"
                                 className="w-full rounded-xl border border-gray-300 px-4 py-4 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                             />
 
+                            {(searchingDestination || destinationSuggestions.length > 0) && (
+                                <div className="absolute z-40 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                                    {searchingDestination && (
+                                        <p className="px-4 py-3 text-sm text-gray-500">
+                                            Searching locations...
+                                        </p>
+                                    )}
+
+                                    {destinationSuggestions.map((place, index) => (
+                                        <button
+                                            key={`${place.latitude}-${place.longitude}-${index}`}
+                                            type="button"
+                                            onClick={() => {
+                                                setDestination(place.name)
+                                                setDestinationCoordinates([
+                                                    place.latitude,
+                                                    place.longitude,
+                                                ])
+                                                setDestinationSuggestions([])
+                                                setFare(null)
+                                            }}
+                                            className="block w-full border-b border-gray-100 px-4 py-3 text-left text-sm text-gray-700 transition last:border-b-0 hover:bg-blue-50"
+                                        >
+                                            {place.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
 
