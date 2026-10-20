@@ -277,52 +277,25 @@ function Dashboard() {
 
 
                 // ==================================
-                // COMPLETED RIDE
-                // ==================================
+// COMPLETED RIDE
+// ==================================
 
-                if (
-                    currentStatus === "completed"
-                ) {
+if (currentStatus === "completed") {
+    // Hide the driver marker and name
+    setDriverCoordinates(null)
+    setDriver(null)
 
-                    const destination =
-                        response.data.ride?.destination
+    // Remove saved driver information
+    localStorage.removeItem(
+        `current_ride_driver_coordinates_${currentUser.id}`
+    )
 
+    localStorage.removeItem(
+        `current_ride_driver_${currentUser.id}`
+    )
 
-                    console.log(
-                        "FINAL DESTINATION:",
-                        destination
-                    )
-
-
-                    if (
-                        destination?.latitude != null &&
-                        destination?.longitude != null
-                    ) {
-
-                        const finalCoordinates = [
-                            destination.latitude,
-                            destination.longitude
-                        ]
-
-
-                        setDriverCoordinates(
-                            finalCoordinates
-                        )
-
-
-                        localStorage.setItem(
-                            `current_ride_driver_coordinates_${currentUser.id}`,
-                            JSON.stringify(
-                                finalCoordinates
-                            )
-                        )
-
-                    }
-
-
-                    return
-                }
-
+    return
+}
 
                 // ==================================
                 // ACTIVE RIDE
