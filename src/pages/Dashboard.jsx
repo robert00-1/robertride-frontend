@@ -353,7 +353,7 @@ if (currentStatus === "completed") {
             clearInterval(interval)
         }
 
-    }, [ride, currentUser])
+    }, [ride?.id, currentUser?.id])
 
 
     // ==========================================
