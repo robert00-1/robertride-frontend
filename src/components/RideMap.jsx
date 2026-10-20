@@ -48,6 +48,7 @@ function RideMap({
 }) {
     const [passengerRoute, setPassengerRoute] = useState([])
     const [approachRoute, setApproachRoute] = useState([])
+    const [tripRoute, setTripRoute] = useState([])
     const [isSimulating, setIsSimulating] = useState(false)
     const [simulatedIndex, setSimulatedIndex] = useState(0)
     const [simulationRoute, setSimulationRoute] = useState([])
@@ -57,6 +58,8 @@ function RideMap({
     const isApproaching =
         rideStatus === "accepted" ||
         rideStatus === "arriving"
+
+    const isRideStarted = rideStatus === "started"    
 
     const validCoordinates = (coords) =>
         Array.isArray(coords) &&
@@ -135,6 +138,71 @@ function RideMap({
         destinationCoordinates?.[1],
         isCompleted,
     ])
+
+    // Driver route: latest GPS position → destination during an active ride.
+    useEffect(() => {
+        const controller = new AbortController()
+
+        async function loadTripRoute() {
+            if (
+                !isRideStarted ||
+                isCompleted ||
+                !validCoordinates(driverCoordinates) ||
+                !validCoordinates(destinationCoordinates)
+            ) {
+                setTripRoute([])
+                return
+            }
+
+            try {
+                const [driverLat, driverLon] =
+                    driverCoordinates.map(Number)
+
+                const [destinationLat, destinationLon] =
+                    destinationCoordinates.map(Number)
+
+                const response = await fetch(
+                    `https://router.project-osrm.org/route/v1/driving/${driverLon},${driverLat};${destinationLon},${destinationLat}?overview=full&geometries=geojson`,
+                    { signal: controller.signal }
+                )
+
+                if (!response.ok) {
+                    throw new Error("Unable to load destination route")
+                }
+
+                const data = await response.json()
+
+                if (data.routes?.length) {
+                    setTripRoute(
+                        data.routes[0].geometry.coordinates.map(
+                            ([longitude, latitude]) => [
+                                latitude,
+                                longitude,
+                            ]
+                        )
+                    )
+                } else {
+                    setTripRoute([])
+                }
+            } catch (error) {
+                if (error.name !== "AbortError") {
+                    console.error("Destination route error:", error)
+                }
+            }
+        }
+
+        loadTripRoute()
+
+        return () => controller.abort()
+    }, [
+        driverCoordinates?.[0],
+        driverCoordinates?.[1],
+        destinationCoordinates?.[0],
+        destinationCoordinates?.[1],
+        isRideStarted,
+        isCompleted,
+    ])
+
 
     // Driver route: latest GPS position → pickup.
     useEffect(() => {
@@ -289,6 +357,19 @@ function RideMap({
                             }}
                         />
                     )}
+
+                  {/* Green route: driver → destination during the ride */}
+{!isCompleted &&
+    isRideStarted &&
+    tripRoute.length > 0 && (
+        <Polyline
+            positions={tripRoute}
+            pathOptions={{
+                color: "green",
+                weight: 6,
+            }}
+        />
+    )}  
 
                 {/* Red route: pickup → destination */}
                 {!isCompleted && passengerRoute.length > 0 && (
