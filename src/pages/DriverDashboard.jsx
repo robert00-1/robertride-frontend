@@ -71,55 +71,36 @@ function DriverDashboard() {
       }
     }
   }
-  const updateDriverLocation = () => {
-
+    const updateDriverLocation = () => {
     if (!navigator.geolocation) {
       console.error("Geolocation is not supported by this browser.")
-      return
+      return null
     }
 
-    navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       async (position) => {
-
         const latitude = position.coords.latitude
         const longitude = position.coords.longitude
 
-        console.log(
-          "Driver location:",
-          latitude,
-          longitude
-        )
+        console.log("Driver GPS:", latitude, longitude)
 
         try {
-          const response = await api.patch(
-            "/api/drivers/location",
-            {
-              latitude: latitude,
-              longitude: longitude,
-            }
-          )
+          const response = await api.patch("/api/drivers/location", {
+            latitude,
+            longitude,
+          })
 
-          console.log(
-            "Location sent to backend:",
-            response.data
-          )
+          console.log("Location sent to backend:", response.data)
         } catch (error) {
-
           console.error(
             "Unable to update driver location:",
-            error.response?.data
+            error.response?.data || error.message
           )
         }
-
-      
       },
 
       (error) => {
-
-        console.error(
-          "Unable to get driver location:",
-          error
-        )
+        console.error("Unable to get driver location:", error.message)
       },
 
       {
@@ -128,13 +109,21 @@ function DriverDashboard() {
         timeout: 30000,
       }
     )
+
+    return watchId
   }
-  useEffect(() => {
+   useEffect(() => {
     setDriverOnline()
 
-    updateDriverLocation()
+    const watchId = updateDriverLocation()
 
     getActiveRide()
+
+    return () => {
+      if (watchId !== null && watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId)
+      }
+    }
   }, [])
 
   const getRideRequests = async () => {

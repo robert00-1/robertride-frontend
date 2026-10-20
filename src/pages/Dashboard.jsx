@@ -235,124 +235,127 @@ function Dashboard() {
     // ==========================================
 
     useEffect(() => {
-
         if (!ride?.id || !currentUser?.id) {
             return
         }
 
+        let isActive = true
 
         const getDriverLocation = async () => {
-
             try {
-
                 const response = await api.get(
                     `/api/rides/${ride.id}/tracking`
                 )
 
+                if (!isActive) return
 
-                console.log(
-                    "Driver tracking:",
-                    response.data
-                )
+                const trackingData = response.data
+                const currentStatus = trackingData.ride?.status
+                const trackingDriver = trackingData.driver
 
+                console.log("Driver tracking:", trackingData)
 
-                const currentStatus =
-                    response.data.ride?.status
+                if (currentStatus) {
+                    setRideStatus(currentStatus)
 
+                    setRide((currentRide) =>
+                        currentRide
+                            ? { ...currentRide, status: currentStatus }
+                            : currentRide
+                    )
+                }
 
-                setRideStatus(
-                    currentStatus
-                )
+                if (currentStatus === "completed") {
+                    setDriverCoordinates(null)
+                    setDriver(null)
 
+                    localStorage.removeItem(
+                        `current_ride_driver_coordinates_${currentUser.id}`
+                    )
+                    localStorage.removeItem(
+                        `current_ride_driver_${currentUser.id}`
+                    )
+                    return
+                }
 
-                setRide((currentRide) => ({
-                    ...currentRide,
-                    status: currentStatus
-                }))
+                if (!trackingDriver) {
+                    setDriver(null)
+                    setDriverCoordinates(null)
 
+                    localStorage.removeItem(
+                        `current_ride_driver_coordinates_${currentUser.id}`
+                    )
+                    localStorage.removeItem(
+                        `current_ride_driver_${currentUser.id}`
+                    )
+                    return
+                }
 
-                setDriver(
-                    response.data.driver
-                )
+                setDriver(trackingDriver)
 
+                const lat = trackingDriver.latitude
+                const lon = trackingDriver.longitude
 
-                // ==================================
-// COMPLETED RIDE
-// ==================================
+                const hasRealGps =
+                    trackingDriver.location_available === true &&
+                    lat !== null &&
+                    lat !== undefined &&
+                    lon !== null &&
+                    lon !== undefined &&
+                    Number.isFinite(Number(lat)) &&
+                    Number.isFinite(Number(lon)) &&
+                    Number(lat) >= -90 &&
+                    Number(lat) <= 90 &&
+                    Number(lon) >= -180 &&
+                    Number(lon) <= 180
 
-if (currentStatus === "completed") {
-    // Hide the driver marker and name
-    setDriverCoordinates(null)
-    setDriver(null)
+                if (!hasRealGps) {
+                    setDriverCoordinates(null)
 
-    // Remove saved driver information
-    localStorage.removeItem(
-        `current_ride_driver_coordinates_${currentUser.id}`
-    )
+                    localStorage.removeItem(
+                        `current_ride_driver_coordinates_${currentUser.id}`
+                    )
 
-    localStorage.removeItem(
-        `current_ride_driver_${currentUser.id}`
-    )
+                    localStorage.setItem(
+                        `current_ride_driver_${currentUser.id}`,
+                        JSON.stringify(trackingDriver)
+                    )
 
-    return
-}
+                    console.log("Waiting for driver's real GPS location.")
+                    return
+                }
 
-                // ==================================
-                // ACTIVE RIDE
-                // ==================================
+                const coordinates = [Number(lat), Number(lon)]
 
-                const coordinates = [
-                    response.data.driver.latitude,
-                    response.data.driver.longitude
-                ]
-
-
-                setDriverCoordinates(
-                    coordinates
-                )
-
+                setDriverCoordinates(coordinates)
 
                 localStorage.setItem(
                     `current_ride_driver_coordinates_${currentUser.id}`,
-                    JSON.stringify(
-                        coordinates
-                    )
+                    JSON.stringify(coordinates)
                 )
-
 
                 localStorage.setItem(
                     `current_ride_driver_${currentUser.id}`,
-                    JSON.stringify(
-                        response.data.driver
-                    )
+                    JSON.stringify(trackingDriver)
                 )
-
-
             } catch (error) {
+                if (!isActive) return
 
                 console.error(
                     "Unable to get driver location:",
-                    error.response?.data
+                    error.response?.data || error.message
                 )
-
             }
-
         }
-
 
         getDriverLocation()
 
-
-        const interval = setInterval(
-            getDriverLocation,
-            3000
-        )
-
+        const interval = setInterval(getDriverLocation, 3000)
 
         return () => {
+            isActive = false
             clearInterval(interval)
         }
-
     }, [ride?.id, currentUser?.id])
 
 
@@ -918,27 +921,17 @@ if (currentStatus === "completed") {
             )
 
 
-            if (
-                error.response?.status === 404
-            ) {
-
-                setRideStatus(
-                    "requested"
-                )
-
-
-                setError(
-                    "Your ride is still waiting for a driver to accept it."
-                )
-
-            } else {
-
-                setError(
-                    error.response?.data?.message ||
-                    "Unable to check ride status."
-                )
-
-            }
+             if (error.response?.status === 404) {
+    setError(
+        error.response?.data?.message ||
+        "Ride details are temporarily unavailable. Please try checking again."
+    )
+} else {
+    setError(
+        error.response?.data?.message ||
+        "Unable to check ride status."
+    )
+}
 
         } finally {
 

@@ -49,9 +49,6 @@ function RideMap({
     const [passengerRoute, setPassengerRoute] = useState([])
     const [approachRoute, setApproachRoute] = useState([])
     const [tripRoute, setTripRoute] = useState([])
-    const [isSimulating, setIsSimulating] = useState(false)
-    const [simulatedIndex, setSimulatedIndex] = useState(0)
-    const [simulationRoute, setSimulationRoute] = useState([])
 
     const isCompleted = rideStatus === "completed"
 
@@ -59,22 +56,24 @@ function RideMap({
         rideStatus === "accepted" ||
         rideStatus === "arriving"
 
-    const isRideStarted = rideStatus === "started"    
+    const isRideStarted = rideStatus === "started"
 
     const validCoordinates = (coords) =>
         Array.isArray(coords) &&
         coords.length >= 2 &&
+        coords[0] !== null &&
+        coords[0] !== undefined &&
+        coords[1] !== null &&
+        coords[1] !== undefined &&
         Number.isFinite(Number(coords[0])) &&
-        Number.isFinite(Number(coords[1]))
+        Number.isFinite(Number(coords[1])) &&
+        Number(coords[0]) >= -90 &&
+        Number(coords[0]) <= 90 &&
+        Number(coords[1]) >= -180 &&
+        Number(coords[1]) <= 180
 
-    // Stop the test when the ride finishes.
-    useEffect(() => {
-        if (isCompleted) {
-            setIsSimulating(false)
-            setSimulationRoute([])
-            setSimulatedIndex(0)
-        }
-    }, [isCompleted])
+    const hasDriverLocation =
+        !isCompleted && validCoordinates(driverCoordinates)
 
     // Passenger route: pickup → destination.
     useEffect(() => {
@@ -139,7 +138,7 @@ function RideMap({
         isCompleted,
     ])
 
-    // Driver route: latest GPS position → destination during an active ride.
+    // Driver route: latest real GPS position → destination.
     useEffect(() => {
         const controller = new AbortController()
 
@@ -147,7 +146,7 @@ function RideMap({
             if (
                 !isRideStarted ||
                 isCompleted ||
-                !validCoordinates(driverCoordinates) ||
+                !hasDriverLocation ||
                 !validCoordinates(destinationCoordinates)
             ) {
                 setTripRoute([])
@@ -187,6 +186,7 @@ function RideMap({
             } catch (error) {
                 if (error.name !== "AbortError") {
                     console.error("Destination route error:", error)
+                    setTripRoute([])
                 }
             }
         }
@@ -201,10 +201,10 @@ function RideMap({
         destinationCoordinates?.[1],
         isRideStarted,
         isCompleted,
+        hasDriverLocation,
     ])
 
-
-    // Driver route: latest GPS position → pickup.
+    // Driver route: latest real GPS position → pickup.
     useEffect(() => {
         const controller = new AbortController()
 
@@ -212,7 +212,7 @@ function RideMap({
             if (
                 !isApproaching ||
                 isCompleted ||
-                !validCoordinates(driverCoordinates) ||
+                !hasDriverLocation ||
                 !validCoordinates(pickupCoordinates)
             ) {
                 setApproachRoute([])
@@ -252,6 +252,7 @@ function RideMap({
             } catch (error) {
                 if (error.name !== "AbortError") {
                     console.error("Driver approach route error:", error)
+                    setApproachRoute([])
                 }
             }
         }
@@ -266,66 +267,14 @@ function RideMap({
         pickupCoordinates?.[1],
         isApproaching,
         isCompleted,
+        hasDriverLocation,
     ])
 
-    // Start a visual-only test along the driver-to-pickup route.
-    useEffect(() => {
-        if (
-            !isSimulating ||
-            simulationRoute.length < 2 ||
-            isCompleted
-        ) {
-            return
-        }
-
-        const interval = setInterval(() => {
-            setSimulatedIndex((previousIndex) => {
-                if (previousIndex >= simulationRoute.length - 1) {
-                    return simulationRoute.length - 1
-                }
-
-                return previousIndex + 1
-            })
-        }, 700)
-
-        return () => clearInterval(interval)
-    }, [isSimulating, simulationRoute.length, isCompleted])
-
-    const hasDriverLocation =
-        !isCompleted && validCoordinates(driverCoordinates)
-
-    const hasDisplayedDriverLocation =
-        !isCompleted &&
-        validCoordinates(
-            isSimulating && simulationRoute.length > 0
-                ? simulationRoute[simulatedIndex]
-                : driverCoordinates
-        )
-
-    const displayedDriverCoordinates =
-        isSimulating && simulationRoute.length > 0
-            ? simulationRoute[simulatedIndex]
-            : driverCoordinates
-
-    const mapCenter = hasDisplayedDriverLocation
-        ? displayedDriverCoordinates.map(Number)
+    const mapCenter = hasDriverLocation
+        ? driverCoordinates.map(Number)
         : validCoordinates(pickupCoordinates)
             ? pickupCoordinates.map(Number)
             : [0.5198, 35.2715]
-
-    const startTestMovement = () => {
-        if (approachRoute.length < 2) return
-
-        setSimulationRoute([...approachRoute])
-        setSimulatedIndex(0)
-        setIsSimulating(true)
-    }
-
-    const stopTestMovement = () => {
-        setIsSimulating(false)
-        setSimulationRoute([])
-        setSimulatedIndex(0)
-    }
 
     return (
         <div className="relative h-96 w-full overflow-hidden rounded-xl">
@@ -335,14 +284,12 @@ function RideMap({
                 className="h-full w-full"
             >
                 <TileLayer
-                    attribution='&copy; OpenStreetMap contributors'
+                    attribution="&copy; OpenStreetMap contributors"
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {hasDisplayedDriverLocation && (
-                    <FollowDriver
-                        coordinates={displayedDriverCoordinates.map(Number)}
-                    />
+                {hasDriverLocation && (
+                    <FollowDriver coordinates={driverCoordinates.map(Number)} />
                 )}
 
                 {/* Blue route: driver → pickup */}
@@ -351,54 +298,42 @@ function RideMap({
                     approachRoute.length > 0 && (
                         <Polyline
                             positions={approachRoute}
-                            pathOptions={{
-                                color: "blue",
-                                weight: 6,
-                            }}
+                            pathOptions={{ color: "blue", weight: 6 }}
                         />
                     )}
 
-                  {/* Green route: driver → destination during the ride */}
-{!isCompleted &&
-    isRideStarted &&
-    tripRoute.length > 0 && (
-        <Polyline
-            positions={tripRoute}
-            pathOptions={{
-                color: "green",
-                weight: 6,
-            }}
-        />
-    )}  
+                {/* Green route: driver → destination */}
+                {!isCompleted &&
+                    isRideStarted &&
+                    tripRoute.length > 0 && (
+                        <Polyline
+                            positions={tripRoute}
+                            pathOptions={{ color: "green", weight: 6 }}
+                        />
+                    )}
 
                 {/* Red route: pickup → destination */}
                 {!isCompleted && passengerRoute.length > 0 && (
                     <Polyline
                         positions={passengerRoute}
-                        pathOptions={{
-                            color: "red",
-                            weight: 5,
-                        }}
+                        pathOptions={{ color: "red", weight: 5 }}
                     />
                 )}
 
-                {/* Driver marker: simulated position during test, GPS otherwise */}
-                {hasDisplayedDriverLocation && (
+                {/* Driver marker: actual coordinates only */}
+                {hasDriverLocation && (
                     <Marker
-                        position={displayedDriverCoordinates.map(Number)}
+                        position={driverCoordinates.map(Number)}
                         icon={liveLocationIcon}
                     >
                         <Tooltip permanent direction="top">
-                            🚗 {driver?.name || "Driver"} -{" "}
-                            {isSimulating ? "TEST MOVEMENT" : "Live location"}
+                            🚗 {driver?.name || "Driver"} - Live GPS
                         </Tooltip>
 
                         <Popup>
                             <strong>{driver?.name || "Driver"}</strong>
                             <br />
-                            {isSimulating
-                                ? "Simulated movement toward pickup"
-                                : "Latest reported GPS location"}
+                            Latest GPS location received from the driver's device.
                         </Popup>
                     </Marker>
                 )}
@@ -424,33 +359,6 @@ function RideMap({
                     </Marker>
                 )}
             </MapContainer>
-
-            {/* Test movement controls */}
-            <div className="absolute left-3 top-3 z-[1000]">
-                {!isSimulating ? (
-                    <button
-                        type="button"
-                        disabled={
-                            isCompleted ||
-                            !isApproaching ||
-                            approachRoute.length < 2 ||
-                            !hasDriverLocation
-                        }
-                        onClick={startTestMovement}
-                        className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        Start test movement
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={stopTestMovement}
-                        className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-md"
-                    >
-                        Stop test movement
-                    </button>
-                )}
-            </div>
 
             <style>
                 {`
