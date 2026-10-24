@@ -26,14 +26,71 @@ const liveLocationIcon = L.divIcon({
     iconAnchor: [18, 18],
 })
 
+function isValidCoordinates(coords) {
+    return (
+        Array.isArray(coords) &&
+        coords.length >= 2 &&
+        coords[0] !== null &&
+        coords[0] !== undefined &&
+        coords[1] !== null &&
+        coords[1] !== undefined &&
+        Number.isFinite(Number(coords[0])) &&
+        Number.isFinite(Number(coords[1])) &&
+        Number(coords[0]) >= -90 &&
+        Number(coords[0]) <= 90 &&
+        Number(coords[1]) >= -180 &&
+        Number(coords[1]) <= 180
+    )
+}
+
+// Follow the driver's GPS while approaching the passenger.
 function FollowDriver({ coordinates }) {
     const map = useMap()
 
     useEffect(() => {
-        if (coordinates) {
-            map.panTo(coordinates, { animate: true })
+        if (isValidCoordinates(coordinates)) {
+            map.panTo(coordinates.map(Number), {
+                animate: true,
+            })
         }
     }, [coordinates?.[0], coordinates?.[1], map])
+
+    return null
+}
+
+// Focus the map on the passenger's trip after Start Ride.
+function FitTripBounds({
+    pickupCoordinates,
+    destinationCoordinates,
+    active,
+}) {
+    const map = useMap()
+
+    useEffect(() => {
+        if (
+            !active ||
+            !isValidCoordinates(pickupCoordinates) ||
+            !isValidCoordinates(destinationCoordinates)
+        ) {
+            return
+        }
+
+        const pickup = pickupCoordinates.map(Number)
+        const destination = destinationCoordinates.map(Number)
+
+        map.fitBounds([pickup, destination], {
+            padding: [40, 40],
+            maxZoom: 15,
+            animate: true,
+        })
+    }, [
+        active,
+        pickupCoordinates?.[0],
+        pickupCoordinates?.[1],
+        destinationCoordinates?.[0],
+        destinationCoordinates?.[1],
+        map,
+    ])
 
     return null
 }
@@ -58,22 +115,15 @@ function RideMap({
 
     const isRideStarted = rideStatus === "started"
 
-    const validCoordinates = (coords) =>
-        Array.isArray(coords) &&
-        coords.length >= 2 &&
-        coords[0] !== null &&
-        coords[0] !== undefined &&
-        coords[1] !== null &&
-        coords[1] !== undefined &&
-        Number.isFinite(Number(coords[0])) &&
-        Number.isFinite(Number(coords[1])) &&
-        Number(coords[0]) >= -90 &&
-        Number(coords[0]) <= 90 &&
-        Number(coords[1]) >= -180 &&
-        Number(coords[1]) <= 180
+    const hasPickupLocation =
+        isValidCoordinates(pickupCoordinates)
+
+    const hasDestination =
+        isValidCoordinates(destinationCoordinates)
 
     const hasDriverLocation =
-        !isCompleted && validCoordinates(driverCoordinates)
+        !isCompleted &&
+        isValidCoordinates(driverCoordinates)
 
     // Passenger route: pickup → destination.
     useEffect(() => {
@@ -82,8 +132,8 @@ function RideMap({
         async function loadPassengerRoute() {
             if (
                 isCompleted ||
-                !validCoordinates(pickupCoordinates) ||
-                !validCoordinates(destinationCoordinates)
+                !hasPickupLocation ||
+                !hasDestination
             ) {
                 setPassengerRoute([])
                 return
@@ -102,7 +152,9 @@ function RideMap({
                 )
 
                 if (!response.ok) {
-                    throw new Error("Unable to load passenger route")
+                    throw new Error(
+                        "Unable to load passenger route"
+                    )
                 }
 
                 const data = await response.json()
@@ -121,7 +173,10 @@ function RideMap({
                 }
             } catch (error) {
                 if (error.name !== "AbortError") {
-                    console.error("Passenger route error:", error)
+                    console.error(
+                        "Passenger route error:",
+                        error
+                    )
                     setPassengerRoute([])
                 }
             }
@@ -136,9 +191,12 @@ function RideMap({
         destinationCoordinates?.[0],
         destinationCoordinates?.[1],
         isCompleted,
+        hasPickupLocation,
+        hasDestination,
     ])
 
-    // Driver route: latest real GPS position → destination.
+    // Green trip route: pickup → destination.
+    // This route does not depend on the driver's GPS.
     useEffect(() => {
         const controller = new AbortController()
 
@@ -146,27 +204,29 @@ function RideMap({
             if (
                 !isRideStarted ||
                 isCompleted ||
-                !hasDriverLocation ||
-                !validCoordinates(destinationCoordinates)
+                !hasPickupLocation ||
+                !hasDestination
             ) {
                 setTripRoute([])
                 return
             }
 
             try {
-                const [driverLat, driverLon] =
-                    driverCoordinates.map(Number)
+                const [pickupLat, pickupLon] =
+                    pickupCoordinates.map(Number)
 
                 const [destinationLat, destinationLon] =
                     destinationCoordinates.map(Number)
 
                 const response = await fetch(
-                    `https://router.project-osrm.org/route/v1/driving/${driverLon},${driverLat};${destinationLon},${destinationLat}?overview=full&geometries=geojson`,
+                    `https://router.project-osrm.org/route/v1/driving/${pickupLon},${pickupLat};${destinationLon},${destinationLat}?overview=full&geometries=geojson`,
                     { signal: controller.signal }
                 )
 
                 if (!response.ok) {
-                    throw new Error("Unable to load destination route")
+                    throw new Error(
+                        "Unable to load trip route"
+                    )
                 }
 
                 const data = await response.json()
@@ -185,7 +245,10 @@ function RideMap({
                 }
             } catch (error) {
                 if (error.name !== "AbortError") {
-                    console.error("Destination route error:", error)
+                    console.error(
+                        "Trip route error:",
+                        error
+                    )
                     setTripRoute([])
                 }
             }
@@ -195,16 +258,17 @@ function RideMap({
 
         return () => controller.abort()
     }, [
-        driverCoordinates?.[0],
-        driverCoordinates?.[1],
+        pickupCoordinates?.[0],
+        pickupCoordinates?.[1],
         destinationCoordinates?.[0],
         destinationCoordinates?.[1],
         isRideStarted,
         isCompleted,
-        hasDriverLocation,
+        hasPickupLocation,
+        hasDestination,
     ])
 
-    // Driver route: latest real GPS position → pickup.
+    // Blue approach route: driver's GPS → passenger pickup.
     useEffect(() => {
         const controller = new AbortController()
 
@@ -213,7 +277,7 @@ function RideMap({
                 !isApproaching ||
                 isCompleted ||
                 !hasDriverLocation ||
-                !validCoordinates(pickupCoordinates)
+                !hasPickupLocation
             ) {
                 setApproachRoute([])
                 return
@@ -232,7 +296,9 @@ function RideMap({
                 )
 
                 if (!response.ok) {
-                    throw new Error("Unable to load driver approach route")
+                    throw new Error(
+                        "Unable to load driver approach route"
+                    )
                 }
 
                 const data = await response.json()
@@ -251,7 +317,10 @@ function RideMap({
                 }
             } catch (error) {
                 if (error.name !== "AbortError") {
-                    console.error("Driver approach route error:", error)
+                    console.error(
+                        "Driver approach route error:",
+                        error
+                    )
                     setApproachRoute([])
                 }
             }
@@ -268,13 +337,17 @@ function RideMap({
         isApproaching,
         isCompleted,
         hasDriverLocation,
+        hasPickupLocation,
     ])
 
-    const mapCenter = hasDriverLocation
-        ? driverCoordinates.map(Number)
-        : validCoordinates(pickupCoordinates)
-            ? pickupCoordinates.map(Number)
-            : [0.5198, 35.2715]
+    // Use the driver's position initially while approaching.
+    // When the ride starts, FitTripBounds focuses on pickup → destination.
+    const mapCenter =
+        hasDriverLocation && isApproaching
+            ? driverCoordinates.map(Number)
+            : hasPickupLocation
+                ? pickupCoordinates.map(Number)
+                : [0.5198, 35.2715]
 
     return (
         <div className="relative h-96 w-full overflow-hidden rounded-xl">
@@ -288,39 +361,60 @@ function RideMap({
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {hasDriverLocation && (
-                    <FollowDriver coordinates={driverCoordinates.map(Number)} />
+                {/* Follow the driver only before the ride starts. */}
+                {hasDriverLocation && isApproaching && (
+                    <FollowDriver
+                        coordinates={driverCoordinates.map(Number)}
+                    />
                 )}
 
-                {/* Blue route: driver → pickup */}
+                {/* Fit the map to the trip when the ride starts. */}
+                <FitTripBounds
+                    pickupCoordinates={pickupCoordinates}
+                    destinationCoordinates={destinationCoordinates}
+                    active={isRideStarted && !isCompleted}
+                />
+
+                {/* Blue route: driver → pickup. */}
                 {!isCompleted &&
                     isApproaching &&
                     approachRoute.length > 0 && (
                         <Polyline
                             positions={approachRoute}
-                            pathOptions={{ color: "blue", weight: 6 }}
+                            pathOptions={{
+                                color: "blue",
+                                weight: 6,
+                            }}
                         />
                     )}
 
-                {/* Green route: driver → destination */}
+                {/* Green route: pickup → destination. */}
                 {!isCompleted &&
                     isRideStarted &&
                     tripRoute.length > 0 && (
                         <Polyline
                             positions={tripRoute}
-                            pathOptions={{ color: "green", weight: 6 }}
+                            pathOptions={{
+                                color: "green",
+                                weight: 6,
+                            }}
                         />
                     )}
 
-                {/* Red route: pickup → destination */}
-                {!isCompleted && passengerRoute.length > 0 && (
-                    <Polyline
-                        positions={passengerRoute}
-                        pathOptions={{ color: "red", weight: 5 }}
-                    />
-                )}
+                {/* Red route: shown before the ride starts. */}
+                {!isCompleted &&
+                    !isRideStarted &&
+                    passengerRoute.length > 0 && (
+                        <Polyline
+                            positions={passengerRoute}
+                            pathOptions={{
+                                color: "red",
+                                weight: 5,
+                            }}
+                        />
+                    )}
 
-                {/* Driver marker: actual coordinates only */}
+                {/* Live driver GPS marker. */}
                 {hasDriverLocation && (
                     <Marker
                         position={driverCoordinates.map(Number)}
@@ -331,26 +425,38 @@ function RideMap({
                         </Tooltip>
 
                         <Popup>
-                            <strong>{driver?.name || "Driver"}</strong>
+                            <strong>
+                                {driver?.name || "Driver"}
+                            </strong>
                             <br />
-                            Latest GPS location received from the driver's device.
+                            Latest GPS location received from
+                            the driver's device.
                         </Popup>
                     </Marker>
                 )}
 
-                {/* Passenger pickup */}
-                {!isCompleted && validCoordinates(pickupCoordinates) && (
-                    <Marker position={pickupCoordinates.map(Number)}>
-                        <Tooltip permanent direction="top">
-                            👤 {passenger?.name || "Passenger"} - Pickup
-                        </Tooltip>
-                        <Popup>Passenger pickup location</Popup>
-                    </Marker>
-                )}
+                {/* Hide the pickup marker after Start Ride. */}
+                {!isCompleted &&
+                    !isRideStarted &&
+                    hasPickupLocation && (
+                        <Marker
+                            position={pickupCoordinates.map(Number)}
+                        >
+                            <Tooltip permanent direction="top">
+                                👤 {passenger?.name || "Passenger"} - Pickup
+                            </Tooltip>
 
-                {/* Destination */}
-                {validCoordinates(destinationCoordinates) && (
-                    <Marker position={destinationCoordinates.map(Number)}>
+                            <Popup>
+                                Passenger pickup location
+                            </Popup>
+                        </Marker>
+                    )}
+
+                {/* Destination marker. */}
+                {hasDestination && (
+                    <Marker
+                        position={destinationCoordinates.map(Number)}
+                    >
                         <Popup>
                             {isCompleted
                                 ? "Ride completed - Destination"
@@ -401,6 +507,7 @@ function RideMap({
                             transform: scale(0.8);
                             opacity: 1;
                         }
+
                         100% {
                             transform: scale(2.5);
                             opacity: 0;
