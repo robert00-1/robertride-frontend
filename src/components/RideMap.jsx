@@ -95,6 +95,59 @@ function FitTripBounds({
     return null
 }
 
+function AutoCenterMap({
+    pickupCoordinates,
+    destinationCoordinates,
+    active,
+}) {
+    const map = useMap()
+
+    useEffect(() => {
+        if (!active) return
+
+        const hasPickup = isValidCoordinates(pickupCoordinates)
+        const hasDestination = isValidCoordinates(destinationCoordinates)
+
+        if (hasPickup && hasDestination) {
+            const pickup = pickupCoordinates.map(Number)
+            const destination = destinationCoordinates.map(Number)
+
+            const bounds = L.latLngBounds(
+                pickup,
+                destination
+            )
+
+            map.fitBounds(bounds, {
+                padding: [40, 40],
+                maxZoom: 15,
+                animate: true,
+            })
+        } else if (hasPickup) {
+            map.setView(
+                pickupCoordinates.map(Number),
+                15,
+                { animate: true }
+            )
+        } else if (hasDestination) {
+            map.setView(
+                destinationCoordinates.map(Number),
+                15,
+                { animate: true }
+            )
+        }
+    }, [
+        map,
+        active,
+        pickupCoordinates?.[0],
+        pickupCoordinates?.[1],
+        destinationCoordinates?.[0],
+        destinationCoordinates?.[1],
+    ])
+
+    return null
+}
+
+
 function RideMap({
     pickupCoordinates,
     destinationCoordinates,
@@ -360,6 +413,15 @@ function RideMap({
                     attribution="&copy; OpenStreetMap contributors"
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                <AutoCenterMap
+    pickupCoordinates={pickupCoordinates}
+    destinationCoordinates={destinationCoordinates}
+    active={
+        !isApproaching &&
+        !isRideStarted &&
+        !isCompleted
+    }
+/>
 
                 {/* Follow the driver only before the ride starts. */}
                 {hasDriverLocation && isApproaching && (

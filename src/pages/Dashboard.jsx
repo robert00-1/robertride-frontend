@@ -361,7 +361,7 @@ function Dashboard() {
 
     // ==========================================
     // SEARCH LOCATION SUGGESTIONS
-      
+
 const searchLocationSuggestions = async (
     query,
     setSuggestions,
@@ -378,17 +378,15 @@ const searchLocationSuggestions = async (
     setSearching(true);
 
     try {
-        const searchQuery = /eldoret|kenya/i.test(trimmedQuery)
+        // Search across Kenya instead of restricting results to Eldoret.
+        const searchQuery = /\bkenya\b/i.test(trimmedQuery)
             ? trimmedQuery
-            : `${trimmedQuery}, Eldoret, Kenya`;
+            : `${trimmedQuery}, Kenya`;
 
         const params = new URLSearchParams({
             q: searchQuery,
             limit: "10",
-            lat: "-0.5143",
-            lon: "35.2698",
             lang: "en",
-            zoom: "16",
         });
 
         const response = await fetch(
@@ -771,7 +769,13 @@ const searchLocationSuggestions = async (
 
             const driversResponse =
                 await api.get(
-                    "/api/drivers/available"
+                    "/api/drivers/available",
+                    {
+                        params: {
+                            pickup_latitude: pickupCoords[0],
+                            pickup_longitude: pickupCoords[1],
+                        }
+                    }
                 )
 
 
@@ -794,12 +798,8 @@ const searchLocationSuggestions = async (
                 return
             }
 
-
-            // Select first available driver
-
-            const selectedDriver =
-                drivers[0]
-
+           // Drivers are sorted by distance by the backend.
+const selectedDriver = drivers[0]
 
             console.log(
                 "Selected driver:",
@@ -979,6 +979,61 @@ const searchLocationSuggestions = async (
 
         }
 
+    }
+        // ==========================================
+    // SHARE LIVE RIDE
+    // ==========================================
+
+    const shareLiveRide = async () => {
+        if (!ride?.id) {
+            setError("No ride is available to share.")
+            return
+        }
+
+        if (rideStatus === "completed") {
+            setError("This ride has already been completed.")
+            return
+        }
+
+        try {
+            setError("")
+            setSuccess("")
+
+            const response = await api.post(
+                `/api/rides/${ride.id}/share-link`
+            )
+
+            const token = response.data.token
+            const shareUrl =
+                `${window.location.origin}/share/${encodeURIComponent(token)}`
+
+            const shareText =
+                `Track my RobertRide trip live: ${shareUrl}`
+
+            if (navigator.share) {
+                await navigator.share({
+                    title: "Track my RobertRide trip",
+                    text: "Use this link to follow my ride:",
+                    url: shareUrl,
+                })
+
+                setSuccess("Ride-sharing link is ready to share.")
+            } else {
+                await navigator.clipboard.writeText(shareText)
+                setSuccess("Live ride link copied. You can share it on WhatsApp.")
+            }
+        } catch (error) {
+            if (error.name === "AbortError") {
+                return
+            }
+
+            console.error("Unable to share ride:", error)
+
+            setError(
+                error.response?.data?.message ||
+                "Unable to create the live ride-sharing link."
+            )
+        }
     }
 
 
@@ -1517,6 +1572,16 @@ const searchLocationSuggestions = async (
                                     </h3>
 
                                 </div>
+                                {rideStatus !== "completed" && (
+    <button
+        type="button"
+        onClick={shareLiveRide}
+        className="mt-5 w-full rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-blue-700"
+    >
+        Share Live Ride
+    </button>
+)}
+
 
 
                                 {/* DRIVER DETAILS */}

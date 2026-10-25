@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import api from "../services/api"
+import RideMap from "../components/RideMap"
 
 function DriverDashboard() {
 
@@ -10,6 +11,7 @@ function DriverDashboard() {
   const [acceptingRide, setAcceptingRide] = useState(false)
   const [ activeRide, setActiveRide] = useState(null)
   const [updatingRide, setUpdatingRide] = useState(false)
+  const [driverCoordinates, setDriverCoordinates] = useState(null)
   const [newRideNotification, setNewRideNotification] = useState(null)
 
   const getCurrentUser = async () => {
@@ -81,6 +83,7 @@ function DriverDashboard() {
       async (position) => {
         const latitude = position.coords.latitude
         const longitude = position.coords.longitude
+        setDriverCoordinates([latitude, longitude])
 
         console.log("Driver GPS:", latitude, longitude)
 
@@ -150,7 +153,7 @@ function DriverDashboard() {
 
       setRequests(newRequests)
 
-      
+
 
     } catch (error) {
 
@@ -203,11 +206,11 @@ function DriverDashboard() {
         )
 
 
-        setRequests((currentRequests) => 
+        setRequests((currentRequests) =>
             currentRequests.filter(
                 (request) => request.request_id != requestId
             )
-        
+
         )
     } catch (error) {
         console.error(error)
@@ -384,9 +387,40 @@ const updateRideStatus = async (rideId, status) => {
               <h2 className="mt-2 text-2xl font-black text-gray-900">
                 Ride #{activeRide.id}
               </h2>
+
             </div>
-            
+
+            {/* LIVE TRIP MAP */}
+            <div className="mt-6 h-80 overflow-hidden rounded-xl border border-blue-200">
+              <RideMap
+                pickupCoordinates={
+                  activeRide.pickup_latitude != null &&
+                  activeRide.pickup_longitude != null
+                    ? [
+                        Number(activeRide.pickup_latitude),
+                        Number(activeRide.pickup_longitude),
+                      ]
+                    : null
+                }
+                destinationCoordinates={
+                  activeRide.destination_latitude != null &&
+                  activeRide.destination_longitude != null
+                    ? [
+                        Number(activeRide.destination_latitude),
+                        Number(activeRide.destination_longitude),
+                      ]
+                    : null
+                }
+                driverCoordinates={driverCoordinates}
+                rideStatus={activeRide.status}
+                driver={currentUser}
+              />
+            </div>
+
             <div className="mt-6 space-y-4">
+
+
+
               <div className="flex justify-between bordr-b border-blue-200 pb-3">
                 <span className="font-semibold text-gray-600">
                   Pickup
@@ -424,13 +458,13 @@ const updateRideStatus = async (rideId, status) => {
                 </span>
               </div>
               {activeRide.status === "accepted" && (
-                <button 
+                <button
                 type="button"
                 onClick={() => updateRideStatus(activeRide.id, "arriving")}
                 disabled={updatingRide}
                 className="mt-6 w-full rounded-xl bg-blue-600 px-6 py-4 font-bold text-white transition hover:bg-blue-700 disable:cusor-not-allowed disable:opacity-60"
-                
-               > 
+
+               >
                {updatingRide ?  "Updating..." : "Driver is Arriving"}
                </button>
               )}
@@ -440,14 +474,14 @@ const updateRideStatus = async (rideId, status) => {
                 type="button"
                 onClick={() => updateRideStatus(activeRide.id, "started")}
                 disabled={updatingRide}
-                className="mt-6 w-full rounded-xl bg-green-600 px-6 py-4 font-bold text-white transition hover:bg-green-700 disable:cusor-not-allowed disable:opacity-60 " 
-                
+                className="mt-6 w-full rounded-xl bg-green-600 px-6 py-4 font-bold text-white transition hover:bg-green-700 disable:cusor-not-allowed disable:opacity-60 "
+
                 >
                   {updatingRide ? "Updating..." : "Start Ride"}
                 </button>
               )}
               {activeRide.status === "started" && (
-                <button 
+                <button
                 type="button"
                 onClick={() => updateRideStatus(activeRide.id, "completed")}
                 disabled={updatingRide}
@@ -538,7 +572,7 @@ const updateRideStatus = async (rideId, status) => {
 
                   </div>
 
-                  <button 
+                  <button
                   type="button"
                   onClick={() => acceptRide(request.request_id)}
                   disabled={acceptingRide}
@@ -547,7 +581,7 @@ const updateRideStatus = async (rideId, status) => {
                     {acceptingRide
                     ? "Accepting ride..."
                     : "Accept Ride"
-                    
+
                     }
                   </button>
 

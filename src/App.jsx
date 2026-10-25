@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard"
 import DriverDashboard from "./pages/DriverDashboard"
 import DriverRegister from "./pages/DriverRegister"
 import AdminDashboard from "./pages/AdminDashboard"
+import PublicRideTracking from "./pages/PublicRideTracking"
 function App() {
   return (
     <Routes>
@@ -33,10 +34,12 @@ function App() {
      <Route
   path="/driver-dashboard"
   element={<DriverDashboard />}
-/> 
+/>
 
 <Route path="/admin" element={<AdminDashboard />} />
-     
+
+<Route path="/share/:token" element={<PublicRideTracking />} />
+
 
     </Routes>
   )

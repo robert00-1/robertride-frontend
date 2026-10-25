@@ -14,14 +14,19 @@ function DriverRegister() {
         phone: "",
         password: "",
         license_number: "",
+        stage_name: "",
+        stage_latitude: "",
+        stage_longitude: "",
          make: "",
          model: "",
          color: "",
          plate_number: "",
+
     })
 
     const [message, setMessage] = useState("")
     const [loading, setLoading] = useState(false)
+    const [locationLoading, setLocationLoading] = useState(false)
 
 
     const handleChange = (e) => {
@@ -33,6 +38,44 @@ function DriverRegister() {
             [name]: value,
         }))
     }
+    const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+        setMessage("Geolocation is not supported by this browser.")
+        return
+    }
+
+    setLocationLoading(true)
+    setMessage("")
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            setFormData((current) => ({
+                ...current,
+                stage_latitude: String(position.coords.latitude),
+                stage_longitude: String(position.coords.longitude),
+            }))
+
+            setLocationLoading(false)
+            setMessage("Location captured successfully.")
+        },
+        (error) => {
+            console.error("Location error:", error)
+
+            setMessage(
+                error.code === 1
+                    ? "Location permission denied. Allow location access in your browser."
+                    : "Unable to get your location. Check GPS and try again."
+            )
+
+            setLocationLoading(false)
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
+        }
+    )
+}
 
 
     const handleSubmit = async (e) => {
@@ -230,6 +273,60 @@ function DriverRegister() {
 
                         </div>
 
+{/* Operating Location */}
+
+<div className="border-t pt-5">
+    <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        Operating Location
+    </h3>
+
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+        City or operating area
+    </label>
+
+    <select
+        name="stage_name"
+        value={formData.stage_name}
+        onChange={handleChange}
+        required
+        className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+    >
+        <option value="">Select your operating city</option>
+        <option value="Nairobi">Nairobi</option>
+        <option value="Eldoret">Eldoret</option>
+        <option value="Mombasa">Mombasa</option>
+        <option value="Kisumu">Kisumu</option>
+        <option value="Nakuru">Nakuru</option>
+        <option value="Other">Other</option>
+    </select>
+
+    <button
+        type="button"
+        onClick={handleUseCurrentLocation}
+        disabled={locationLoading}
+        className="mt-3 w-full rounded-lg border border-blue-600 py-3 font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+    >
+        {locationLoading
+            ? "Getting your location..."
+            : "Use My Current Location"}
+    </button>
+
+    {formData.stage_latitude !== "" &&
+        formData.stage_longitude !== "" && (
+            <p className="mt-2 text-sm text-green-700">
+                GPS coordinates captured:{" "}
+                {Number(formData.stage_latitude).toFixed(5)},{" "}
+                {Number(formData.stage_longitude).toFixed(5)}
+            </p>
+        )}
+
+    <p className="mt-2 text-sm text-gray-500">
+        Select the city where you intend to operate. Capture your
+        location while you are physically in that area.
+    </p>
+</div>
+
+
 
                         {/* Vehicle section */}
 
@@ -245,7 +342,7 @@ function DriverRegister() {
                                 <input
                                     type="text"
                                     name="make"
-                                    value={formData.vehicle_make}
+                                    value={formData.make}
                                     onChange={handleChange}
                                     placeholder="Vehicle make"
                                     required
@@ -256,7 +353,7 @@ function DriverRegister() {
                                 <input
                                     type="text"
                                     name="model"
-                                    value={formData.vehicle_model}
+                                    value={formData.model}
                                     onChange={handleChange}
                                     placeholder="Vehicle model"
                                     required
@@ -267,7 +364,7 @@ function DriverRegister() {
                                 <input
                                     type="text"
                                     name="color"
-                                    value={formData.vehicle_color}
+                                    value={formData.color}
                                     onChange={handleChange}
                                     placeholder="Vehicle color"
                                     required
