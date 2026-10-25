@@ -47,17 +47,18 @@ function Login() {
 
 
             // Redirect according to role
-            if (
-                response.data.user.role === "driver"
-            ) {
+            const role = response.data.user.role
 
+            if (role === "admin") {
+                navigate("/admin")
+            } else if (role === "driver") {
                 navigate("/driver-dashboard")
-
             } else {
-
                 navigate("/dashboard")
-
             }
+                    
+            
+
 
 
         } catch (error) {

@@ -7,6 +7,7 @@ import Login from "./pages/Login"
 import Dashboard from "./pages/Dashboard"
 import DriverDashboard from "./pages/DriverDashboard"
 import DriverRegister from "./pages/DriverRegister"
+import AdminDashboard from "./pages/AdminDashboard"
 function App() {
   return (
     <Routes>
@@ -34,6 +35,7 @@ function App() {
   element={<DriverDashboard />}
 /> 
 
+<Route path="/admin" element={<AdminDashboard />} />
      
 
     </Routes>
