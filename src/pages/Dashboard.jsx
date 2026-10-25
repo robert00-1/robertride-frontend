@@ -361,57 +361,80 @@ function Dashboard() {
 
     // ==========================================
     // SEARCH LOCATION SUGGESTIONS
-    // ==========================================
+    
+const searchLocationSuggestions = async (query, setSuggestions, setSearching) => {
+    const trimmedQuery = query.trim();
 
-    const searchLocationSuggestions = async (query, setSuggestions, setSearching) => {
-        const trimmedQuery = query.trim()
-
-        if (trimmedQuery.length < 3) {
-            setSuggestions([])
-            setSearching(false)
-            return
-        }
-
-        setSearching(true)
-
-        try {
-            const params = new URLSearchParams({
-                format: "jsonv2",
-                q: trimmedQuery,
-                countrycodes: "ke",
-                limit: "5",
-                addressdetails: "1",
-            })
-
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-                {
-                    headers: {
-                        Accept: "application/json",
-                    },
-                }
-            )
-
-            if (!response.ok) {
-                throw new Error("Location search failed")
-            }
-
-            const results = await response.json()
-
-            setSuggestions(
-                results.map((place) => ({
-                    name: place.display_name,
-                    latitude: Number(place.lat),
-                    longitude: Number(place.lon),
-                }))
-            )
-        } catch (searchError) {
-            console.error("Location suggestions failed:", searchError)
-            setSuggestions([])
-        } finally {
-            setSearching(false)
-        }
+    if (trimmedQuery.length < 3) {
+        setSuggestions([]);
+        setSearching(false);
+        return;
     }
+
+    setSearching(true);
+
+    try {
+        const searchQuery = trimmedQuery.toLowerCase().includes("eldoret")
+            ? trimmedQuery
+            : `${trimmedQuery}, Eldoret, Kenya`;
+
+        const params = new URLSearchParams({
+            q: searchQuery,
+            limit: "5",
+            lat: "-0.5143",
+            lon: "35.2698",
+            lang: "en",
+        });
+
+        const response = await fetch(
+            `https://photon.komoot.io/api/?${params.toString()}`
+        );
+
+        if (!response.ok) {
+            throw new Error("Location search failed");
+        }
+
+        const data = await response.json();
+
+        const suggestions = (data.features || [])
+            .map((place) => {
+                const properties = place.properties || {};
+                const coordinates = place.geometry?.coordinates;
+
+                if (!Array.isArray(coordinates) || coordinates.length < 2) {
+                    return null;
+                }
+
+                const parts = [
+                    properties.name,
+                    properties.street,
+                    properties.district,
+                    properties.city,
+                    properties.state,
+                    properties.country,
+                ].filter(Boolean);
+
+                return {
+                    name: [...new Set(parts)].join(", "),
+                    latitude: Number(coordinates[1]),
+                    longitude: Number(coordinates[0]),
+                };
+            })
+            .filter(
+                (place) =>
+                    place &&
+                    Number.isFinite(place.latitude) &&
+                    Number.isFinite(place.longitude)
+            );
+
+        setSuggestions(suggestions);
+    } catch (searchError) {
+        console.error("Location suggestions failed:", searchError);
+        setSuggestions([]);
+    } finally {
+        setSearching(false);
+    }
+};
 
 
     // ==========================================
