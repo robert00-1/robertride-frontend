@@ -361,8 +361,12 @@ function Dashboard() {
 
     // ==========================================
     // SEARCH LOCATION SUGGESTIONS
-    
-const searchLocationSuggestions = async (query, setSuggestions, setSearching) => {
+      
+const searchLocationSuggestions = async (
+    query,
+    setSuggestions,
+    setSearching
+) => {
     const trimmedQuery = query.trim();
 
     if (trimmedQuery.length < 3) {
@@ -374,16 +378,17 @@ const searchLocationSuggestions = async (query, setSuggestions, setSearching) =>
     setSearching(true);
 
     try {
-        const searchQuery = trimmedQuery.toLowerCase().includes("eldoret")
+        const searchQuery = /eldoret|kenya/i.test(trimmedQuery)
             ? trimmedQuery
             : `${trimmedQuery}, Eldoret, Kenya`;
 
         const params = new URLSearchParams({
             q: searchQuery,
-            limit: "5",
+            limit: "10",
             lat: "-0.5143",
             lon: "35.2698",
             lang: "en",
+            zoom: "16",
         });
 
         const response = await fetch(
@@ -401,15 +406,21 @@ const searchLocationSuggestions = async (query, setSuggestions, setSearching) =>
                 const properties = place.properties || {};
                 const coordinates = place.geometry?.coordinates;
 
-                if (!Array.isArray(coordinates) || coordinates.length < 2) {
+                if (
+                    !Array.isArray(coordinates) ||
+                    coordinates.length < 2
+                ) {
                     return null;
                 }
 
                 const parts = [
                     properties.name,
                     properties.street,
+                    properties.suburb,
+                    properties.neighbourhood,
                     properties.district,
                     properties.city,
+                    properties.county,
                     properties.state,
                     properties.country,
                 ].filter(Boolean);
@@ -424,17 +435,23 @@ const searchLocationSuggestions = async (query, setSuggestions, setSearching) =>
                 (place) =>
                     place &&
                     Number.isFinite(place.latitude) &&
-                    Number.isFinite(place.longitude)
+                    Number.isFinite(place.longitude) &&
+                    Math.abs(place.latitude) <= 90 &&
+                    Math.abs(place.longitude) <= 180
             );
 
         setSuggestions(suggestions);
     } catch (searchError) {
-        console.error("Location suggestions failed:", searchError);
+        console.error(
+            "Location suggestions failed:",
+            searchError
+        );
         setSuggestions([]);
     } finally {
         setSearching(false);
     }
 };
+
 
 
     // ==========================================
