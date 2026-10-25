@@ -1347,27 +1347,26 @@ const selectedDriver = drivers[0]
                         </div>
 
 
-                        <RideMap
-                            pickupCoordinates={
-                                pickupCoordinates
-                            }
+                        <div className="relative">
+                            <RideMap
+                                pickupCoordinates={pickupCoordinates}
+                                destinationCoordinates={destinationCoordinates}
+                                driverCoordinates={driverCoordinates}
+                                rideStatus={rideStatus || ride?.status}
+                                driver={driver}
+                                passenger={currentUser}
+                            />
 
-                            destinationCoordinates={
-                                destinationCoordinates
-                            }
-
-                            driverCoordinates={
-                                driverCoordinates
-                            }
-
-                            rideStatus={
-                                rideStatus || ride?.status
-                            }
-
-                            driver={driver}
-
-                            passenger={currentUser}
-                        />
+                            {ride && rideStatus !== "completed" && (
+                                <button
+                                    type="button"
+                                    onClick={shareLiveRide}
+                                    className="absolute bottom-4 right-4 z-[1000] rounded-xl bg-blue-600 px-5 py-3 font-bold text-white shadow-lg transition hover:bg-blue-700"
+                                >
+                                    ↗ Share Live Ride
+                                </button>
+                            )}
+                        </div>
 
                     </div>
 
