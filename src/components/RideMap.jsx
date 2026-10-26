@@ -152,6 +152,7 @@ function RideMap({
     pickupCoordinates,
     destinationCoordinates,
     driverCoordinates,
+    passengerCoordinates,
     rideStatus,
     driver,
     passenger,
@@ -177,6 +178,10 @@ function RideMap({
     const hasDriverLocation =
         !isCompleted &&
         isValidCoordinates(driverCoordinates)
+
+     const hasPassengerLocation =
+    !isCompleted &&
+    isValidCoordinates(passengerCoordinates)
 
     // Passenger route: pickup → destination.
     useEffect(() => {
@@ -475,6 +480,28 @@ function RideMap({
                             }}
                         />
                     )}
+
+                {/* Live passenger GPS marker. */}
+                {hasPassengerLocation && (
+                    <Marker
+                        position={passengerCoordinates.map(Number)}
+                        icon={liveLocationIcon}
+                        zIndexOffset={1000}
+                    >
+                        <Tooltip permanent direction="top">
+                            👤 {passenger?.name || "Passenger"} - Live GPS
+                        </Tooltip>
+
+                        <Popup>
+                            <strong>
+                                {passenger?.name || "Passenger"}
+                            </strong>
+                            <br />
+                            Passenger's current GPS location.
+                        </Popup>
+                    </Marker>
+                )}
+
 
                 {/* Live driver GPS marker. */}
                 {hasDriverLocation && (

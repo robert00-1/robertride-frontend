@@ -19,7 +19,7 @@ function Dashboard() {
     const [searchingPickup, setSearchingPickup] = useState(false)
     const [searchingDestination, setSearchingDestination] = useState(false)
     const [driverCoordinates, setDriverCoordinates] = useState(null)
-
+    const [passengerCoordinates, setPassengerCoordinates] = useState(null)
     const [fare, setFare] = useState(null)
 
     const [ride, setRide] = useState(null)
@@ -229,6 +229,56 @@ function Dashboard() {
 
     }, [currentUser])
 
+
+    // ==========================================
+    // TRACK PASSENGER LIVE GPS
+    // ==========================================
+
+    useEffect(() => {
+        if (!ride?.id || !currentUser?.id) {
+            setPassengerCoordinates(null)
+            return
+        }
+
+        if (rideStatus === "completed" || ride?.status === "completed") {
+            setPassengerCoordinates(null)
+            return
+        }
+
+        if (!navigator.geolocation) {
+            console.error("Geolocation is not supported by this browser.")
+            return
+        }
+
+        const watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const latitude = position.coords.latitude
+                const longitude = position.coords.longitude
+
+                if (
+                    Number.isFinite(latitude) &&
+                    Number.isFinite(longitude)
+                ) {
+                    setPassengerCoordinates([latitude, longitude])
+                }
+            },
+            (error) => {
+                console.error(
+                    "Unable to get passenger GPS location:",
+                    error.message
+                )
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 5000,
+                timeout: 20000,
+            }
+        )
+
+        return () => {
+            navigator.geolocation.clearWatch(watchId)
+        }
+    }, [ride?.id, rideStatus, currentUser?.id])
 
     // ==========================================
     // TRACK DRIVER LOCATION
@@ -1352,6 +1402,7 @@ const selectedDriver = drivers[0]
                                 pickupCoordinates={pickupCoordinates}
                                 destinationCoordinates={destinationCoordinates}
                                 driverCoordinates={driverCoordinates}
+                                passengerCoordinates={passengerCoordinates}
                                 rideStatus={rideStatus || ride?.status}
                                 driver={driver}
                                 passenger={currentUser}
