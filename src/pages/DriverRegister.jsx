@@ -289,7 +289,7 @@ function DriverRegister() {
     name="stage_name"
     value={formData.stage_name}
     onChange={handleChange}
-    placeholder="e.g. Chwele, Sirisia, Chavakali or Eldoret"
+    placeholder="e.g. Nairobi, Nakuru, Kisumu or Eldoret"
     required
     maxLength={100}
     autoComplete="address-level2"
