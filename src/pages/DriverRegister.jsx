@@ -284,21 +284,17 @@ function DriverRegister() {
         City or operating area
     </label>
 
-    <select
-        name="stage_name"
-        value={formData.stage_name}
-        onChange={handleChange}
-        required
-        className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-    >
-        <option value="">Select your operating city</option>
-        <option value="Nairobi">Nairobi</option>
-        <option value="Eldoret">Eldoret</option>
-        <option value="Mombasa">Mombasa</option>
-        <option value="Kisumu">Kisumu</option>
-        <option value="Nakuru">Nakuru</option>
-        <option value="Other">Other</option>
-    </select>
+     <input
+    type="text"
+    name="stage_name"
+    value={formData.stage_name}
+    onChange={handleChange}
+    placeholder="e.g. Chwele, Sirisia, Chavakali or Eldoret"
+    required
+    maxLength={100}
+    autoComplete="address-level2"
+    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+/>
 
     <button
         type="button"
