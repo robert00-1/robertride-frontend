@@ -78,6 +78,13 @@ The frontend communicates with the RobertRide backend API.
 [RobertRide Backend – GitHub](https://github.com/robert00-1/robertride-backend)
 
 ## 👨‍💻 Developer
+## 📸 Application Screenshots
+
+### Homepage
+![RobertRide Homepage](homepage1.png)
+
+### Live Driver Tracking
+![RobertRide Live Tracking](live.png)
 
 **Robert Mmasi**
 
